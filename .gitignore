@@ -1,3 +1,5 @@
 *.ipynb_checkpoints
 anaconda_projects/
-captured_photos/
+cropped_faces/
+enhanced_faces/
+*.jpg
