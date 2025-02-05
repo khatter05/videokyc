@@ -8,40 +8,31 @@ from scipy.spatial.distance import cosine
 
 from app.backend.utlis.models import mtcnn_detector as detector
 from app.backend.utlis.models import srgan_model
-from app.backend.utlis.models import facenet 
+from app.backend.utlis.models import facenet
+from app.backend.utlis.logging_config import get_logger  # Import the global logger
 
+logger=get_logger(__name__)
 
-def extract_face(image_data : bytes, *, padding: float = 0.35) -> Optional[np.ndarray]:
+def extract_face(image_data: np.ndarray, *, padding: float = 0.35) -> Optional[np.ndarray]:
     """
-    Detects a face in the uploaded image file, applies padding to the cropped face, and returns the cropped face as a NumPy array.
+    Detects a face in the uploaded image, applies padding to the cropped face, enhances it, 
+    and returns the enhanced cropped face as a NumPy array.
 
     Args:
-        file (UploadFile): Uploaded image file.
+        image_data (np.ndarray): Image data as a NumPy array (BGR format).
         padding (float, keyword-only): Padding factor (0.1 = 10% extra around the face).
 
     Returns:
-        Optional[np.ndarray]: Cropped face as a NumPy array if face detected, None otherwise.
+        Optional[np.ndarray]: Enhanced cropped face as a NumPy array if face detected, None otherwise.
     """
-    # Read image data from the uploaded file into memory
-    #image_data = file.file.read()  # Get raw image bytes
-
-    # Convert the bytes into a NumPy array
-    image = np.frombuffer(image_data, dtype=np.uint8)
-
-    # Decode the image to an actual image array using OpenCV
-    image = cv2.imdecode(image, cv2.IMREAD_COLOR)
-    if image is None:
-        print(f"Error: Unable to decode image")
-        return None
-
-    # Initialize MTCNN detector
-    #detector = MTCNN()
+    # Ensure the image is in the correct format (BGR)
+    image = image_data
 
     # Detect faces
     faces = detector.detect_faces(image)
 
     if not faces:
-        print("No face detected.")
+        logger.warning("No face detected in the image.")
         return None
 
     height, width, _ = image.shape  # Image dimensions
@@ -60,31 +51,31 @@ def extract_face(image_data : bytes, *, padding: float = 0.35) -> Optional[np.nd
         # Crop the padded face
         cropped_face = image[y1:y2, x1:x2]
 
-        print(f"✅ Face extracted with padding {padding*100:.1f}%")
+        # Call the enhance_image function to enhance the cropped face
+        enhanced_face = enhance_image(cropped_face)
 
-        # Return the cropped face as a NumPy array
-        return cropped_face
+        if enhanced_face is None:
+            logger.error("Face enhancement failed.")
+            return None
+
+        logger.info(f"Face extracted and enhanced with padding {padding*100:.1f}%")
+        return enhanced_face
 
     return None  # If no face was detected
 
 
-def enhance_image(image_data: bytes) -> Optional[np.ndarray]:
+def enhance_image(image: np.ndarray) -> Optional[np.ndarray]:
     """
     Enhances the resolution of the given image using ESRGAN in memory.
 
     Args:
-        image_data (bytes): Raw byte data of the image to enhance.
+        image (np.ndarray): Input image as a NumPy array (in BGR format).
 
     Returns:
         Optional[np.ndarray]: Enhanced image as a NumPy array if enhancement is successful, None otherwise.
     """
-    # Convert byte data to NumPy array
-    image = np.frombuffer(image_data, dtype=np.uint8)
-
-    # Decode the image into an actual image array using OpenCV
-    image = cv2.imdecode(image, cv2.IMREAD_COLOR)
     if image is None:
-        print(f"Error: Unable to decode image")
+        logger.error("Received None as input image for enhancement.")
         return None
 
     # Convert to RGB and normalize (0-1)
@@ -98,34 +89,27 @@ def enhance_image(image_data: bytes) -> Optional[np.ndarray]:
     enhanced_image = np.array(enhanced_image)
     enhanced_image = (enhanced_image * 255.0).clip(0, 255).astype(np.uint8)
 
+    logger.info("Image enhancement successful.")
     return enhanced_image
 
 
-def match_faces_with_facenet(image1_data: bytes, image2_data: bytes) -> tuple:
+def match_faces_with_facenet(image1: np.ndarray, image2: np.ndarray) -> tuple:
     """
     Compares two in-memory images and returns whether they match and the similarity score.
 
     Args:
-        image1_data (bytes): Raw byte data of the first image (cropped and enhanced).
-        image2_data (bytes): Raw byte data of the second image (cropped and enhanced).
+        image1 (np.ndarray): The first image (cropped and enhanced).
+        image2 (np.ndarray): The second image (cropped and enhanced).
 
     Returns:
         tuple: A tuple containing:
             - bool: True if the faces match, False otherwise.
             - float: The cosine similarity score between the two faces.
     """
-    # Convert byte data to NumPy arrays
-    image1 = np.frombuffer(image1_data, dtype=np.uint8)
-    image2 = np.frombuffer(image2_data, dtype=np.uint8)
-
-    # Decode images into actual images using OpenCV
-    image1 = cv2.imdecode(image1, cv2.IMREAD_COLOR)
-    image2 = cv2.imdecode(image2, cv2.IMREAD_COLOR)
-
-    if image1 is None:
-        raise ValueError("Failed to decode the first image")
-    if image2 is None:
-        raise ValueError("Failed to decode the second image")
+    # Ensure the images are in BGR format (OpenCV expects BGR by default)
+    if image1 is None or image2 is None:
+        logger.error("One or both input images are None.")
+        raise ValueError("Input images cannot be None.")
 
     # Resize the images to the size FaceNet expects (160x160)
     image1 = cv2.resize(image1, (160, 160))
@@ -138,9 +122,6 @@ def match_faces_with_facenet(image1_data: bytes, image2_data: bytes) -> tuple:
     # Add an extra batch dimension: from (160, 160, 3) to (1, 160, 160, 3)
     image1 = np.expand_dims(image1, axis=0)
     image2 = np.expand_dims(image2, axis=0)
-
-    # Initialize the FaceNet model
-    #facenet = FaceNet()
 
     # Extract face embeddings
     embedding1 = facenet.embeddings(image1)[0]
@@ -155,4 +136,5 @@ def match_faces_with_facenet(image1_data: bytes, image2_data: bytes) -> tuple:
     # Determine if faces match
     faces_match = distance < threshold
 
+    logger.info(f"Face matching result: Match = {faces_match}, Similarity Score = {distance}")
     return faces_match, distance

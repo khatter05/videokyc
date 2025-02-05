@@ -4,59 +4,128 @@ import io
 import cv2
 import numpy as np
 from PIL import Image
-from app.backend.utils.ocr import pan_ocr, adhar_ocr
-from app,backend.utils.face import extract_face, enhance_image, match_faces_with_facenet
+from app.backend.utlis.ocr import pan_ocr, adhar_ocr
+from app.backend.utlis.face import extract_face, enhance_image, match_faces_with_facenet
+from app.backend.utlis.logging_config import get_logger
+from typing import Optional, Dict
 
 router = APIRouter()
 
-async def read_image(file: UploadFile):
+logger = get_logger(__name__)
+
+async def read_image(image_data: bytes) -> Optional[np.ndarray]:
     """
-    Read the uploaded image file asynchronously and convert it to OpenCV format.
+    Reads image data and converts it into a NumPy array for further processing.
+
+    Args:
+        image_data (bytes): The raw image data to read.
+
+    Returns:
+        Optional[np.ndarray]: The image as a NumPy array (cv2 format), or None if the data is empty or invalid.
     """
-    image_bytes = await file.read()  # Read asynchronously
-    image = Image.open(io.BytesIO(image_bytes))  # Open with PIL
-    return cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)  # Convert to OpenCV format
+    logger.info(f"Received image data, length: {len(image_data)} bytes")
+    
+    if not image_data:
+        logger.error("Image data is empty or unreadable")
+        return None
+
+    try:
+        # Convert bytes to image using PIL and then to OpenCV format
+        image = Image.open(io.BytesIO(image_data))
+        cv2_img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        
+        logger.info(f"Image read successfully with shape {cv2_img.shape}")
+        
+        return cv2_img
+    
+    except Exception as e:
+        logger.error(f"Error decoding image data: {e}")
+        return None
 
 @router.post("/process_documents/")
-async def process_documents(pan_image: UploadFile = File(...), adhar_image: UploadFile = File(...), live_image: UploadFile = File(...)):
+async def process_documents(pan_image: UploadFile = File(...),adhar_image: UploadFile = File(...),live_image: UploadFile = File(...)) -> Dict[str, dict]:
     """
     Unified API Endpoint (Asynchronous) to process PAN, Aadhar OCR, and Face Matching.
+
+    Args:
+        pan_image (UploadFile): The uploaded PAN image.
+        adhar_image (UploadFile): The uploaded Aadhar image.
+        live_image (UploadFile): The uploaded live image for face matching.
+
+    Returns:
+        Dict[str, dict]: The results of OCR and face matching.
     """
-    # 🔹 Step 1: Read Images in Parallel
-    pan_img, adhar_img, live_img = await asyncio.gather(
-        read_image(pan_image),
-        read_image(adhar_image),
-        read_image(live_image)
+    logger.info("Processing documents started")
+    
+    # Step 1: Read Images in Parallel (Read image content only once)
+    try:
+        pan_image_data, adhar_image_data, live_image_data = await asyncio.gather(
+            pan_image.read(), 
+            adhar_image.read(), 
+            live_image.read()
+        )
+    except Exception as e:
+        logger.error(f"Error reading images: {e}")
+        return {"error": "Failed to read images"}
+    
+    # Step 2: Pass the image data (in bytes) to the `read_image` function
+    try:
+        pan_img = await read_image(pan_image_data)
+        adhar_img = await read_image(adhar_image_data)
+        live_img = await read_image(live_image_data)
+    except Exception as e:
+        logger.error(f"Error reading image data: {e}")
+        return {"error": "Error processing image data"}
+
+    # Step 3: Extract Face from Live Image
+    extracted_face = await asyncio.to_thread(extract_face, live_img)
+    if extracted_face is None:
+        logger.warning("No face detected in live image")
+        return {"error": "No face detected in live image"}
+    logger.info("Face successfully extracted from live image")
+
+
+    # Step 5: Run OCR in Parallel
+    try:
+        pan_text, adhar_text = await asyncio.gather(
+            asyncio.to_thread(pan_ocr, pan_img),
+            asyncio.to_thread(adhar_ocr, adhar_img)
+        )
+        logger.info("OCR completed successfully")
+    except Exception as e:
+        logger.error(f"OCR processing error: {e}")
+        return {"error": "Failed to perform OCR"}
+
+    # Step 6: Match Extracted Face with Aadhar/PAN Faces in Parallel
+    adhar_face, pan_face = await asyncio.gather(
+        asyncio.to_thread(extract_face, adhar_img),
+        asyncio.to_thread(extract_face, pan_img)
     )
 
-    # 🔹 Step 2: Extract Face from Live Image
-    extracted_face = await asyncio.to_thread(extract_face, live_img)  
-    if extracted_face is None:
-        return {"error": "No face detected in live image"}
+    if adhar_face:
+        logger.info("Face extracted from Aadhar image")
+    else:
+        logger.warning("No face detected in Aadhar image")
 
-    # 🔹 Step 3: Enhance Extracted Face using ESRGAN
-    enhanced_face = await asyncio.to_thread(enhance_image, extracted_face)
+    if pan_face:
+        logger.info("Face extracted from PAN image")
+    else:
+        logger.warning("No face detected in PAN image")
 
-    # 🔹 Step 4: Run OCR in Parallel
-    pan_ocr_task = asyncio.to_thread(pan_ocr, pan_img)
-    adhar_ocr_task = asyncio.to_thread(adhar_ocr, adhar_img)
-    pan_text, adhar_text = await asyncio.gather(pan_ocr_task, adhar_ocr_task)
+    match_adhar, score_adhar = await asyncio.to_thread(
+        match_faces_with_facenet, extracted_face, adhar_face
+    ) if adhar_face else (False, None)
+    match_pan, score_pan = await asyncio.to_thread(
+        match_faces_with_facenet, extracted_face, pan_face
+    ) if pan_face else (False, None)
 
-    # 🔹 Step 5: Match Extracted Face with Aadhar/PAN Faces in Parallel
-    adhar_face_task = asyncio.to_thread(extract_face, adhar_img)
-    pan_face_task = asyncio.to_thread(extract_face, pan_img)
-    adhar_face, pan_face = await asyncio.gather(adhar_face_task, pan_face_task)
+    logger.info(f"Face match results - Aadhar: {match_adhar}, Score: {score_adhar}")
+    logger.info(f"Face match results - PAN: {match_pan}, Score: {score_pan}")
 
-    adhar_match_task = asyncio.to_thread(match_faces_with_facenet, enhanced_face, adhar_face) if adhar_face else None
-    pan_match_task = asyncio.to_thread(match_faces_with_facenet, enhanced_face, pan_face) if pan_face else None
-
-    match_adhar, score_adhar = await adhar_match_task if adhar_match_task else (False, None)
-    match_pan, score_pan = await pan_match_task if pan_match_task else (False, None)
-
-    # 🔹 Step 6: Return All Results
+    # Step 7: Return All Results
     return {
         "pan_ocr": pan_text,
         "adhar_ocr": adhar_text,
         "face_match_with_adhar": {"match": match_adhar, "score": score_adhar},
-        "face_match_with_pan": {"match": match_pan, "score": score_pan}
+        "face_match_with_pan": {"match": match_pan, "score": score_pan},
     }

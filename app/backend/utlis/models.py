@@ -4,12 +4,16 @@ import tensorflow_hub as hub
 import cv2
 from mtcnn import MTCNN
 
+from app.backend.utlis.logging_config import get_logger
+logger = get_logger(__name__)
 
 mtcnn_detector = MTCNN()
+
 
 facenet = FaceNet()
 
 srgan_model = hub.load("https://tfhub.dev/captain-pool/esrgan-tf2/1")
 
-easyocr_reader = easyocr.Reader(['en'])
+OCR_READER = easyocr.Reader(['en'])
 
+logger.info("models are initialized")
