@@ -1,5 +1,8 @@
 *.ipynb_checkpoints
 anaconda_projects/
-cropped_faces/
-enhanced_faces/
 *.jpg
+*.ipynb
+app/__pycache__
+app/backend/__pycache__ 
+app/backend/routers/__pycache__ 
+
