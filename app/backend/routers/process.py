@@ -3,7 +3,7 @@ import asyncio
 import io
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ExifTags
 from app.backend.utlis.ocr import pan_ocr, adhar_ocr
 from app.backend.utlis.face import extract_face, enhance_image, match_faces_with_facenet
 from app.backend.utlis.logging_config import get_logger
@@ -15,32 +15,50 @@ logger = get_logger(__name__)
 
 async def read_image(image_data: bytes) -> Optional[np.ndarray]:
     """
-    Reads image data and converts it into a NumPy array for further processing.
+    Reads image data, corrects orientation if needed, and converts it into a NumPy array.
 
     Args:
-        image_data (bytes): The raw image data to read.
+        image_data (bytes): The raw image data.
 
     Returns:
-        Optional[np.ndarray]: The image as a NumPy array (cv2 format), or None if the data is empty or invalid.
+        Optional[np.ndarray]: The image as a NumPy array (cv2 format) or None if the data is invalid.
     """
     logger.info(f"Received image data, length: {len(image_data)} bytes")
-    
+
     if not image_data:
         logger.error("Image data is empty or unreadable")
         return None
 
     try:
-        # Convert bytes to image using PIL and then to OpenCV format
+        # Convert bytes to a PIL image
         image = Image.open(io.BytesIO(image_data))
+
+        # Handle EXIF orientation
+        try:
+            exif = image._getexif()
+            if exif:
+                for tag, value in exif.items():
+                    if ExifTags.TAGS.get(tag) == "Orientation":
+                        if value == 3:
+                            image = image.rotate(180, expand=True)
+                        elif value == 6:
+                            image = image.rotate(270, expand=True)
+                        elif value == 8:
+                            image = image.rotate(90, expand=True)
+        except Exception as exif_error:
+            logger.warning(f"EXIF data not found or could not be processed: {exif_error}")
+
+        # Convert to OpenCV format (BGR)
+        image = image.convert("RGB")  # Ensure no alpha channel
         cv2_img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-        
-        logger.info(f"Image read successfully with shape {cv2_img.shape}")
-        
+
+        logger.info(f"Image processed successfully with shape {cv2_img.shape}")
         return cv2_img
-    
+
     except Exception as e:
-        logger.error(f"Error decoding image data: {e}")
+        logger.error(f"Error processing image: {e}")
         return None
+
 
 @router.post("/process_documents/")
 async def process_documents(pan_image: UploadFile = File(...),adhar_image: UploadFile = File(...),live_image: UploadFile = File(...)) -> Dict[str, dict]:
@@ -102,30 +120,35 @@ async def process_documents(pan_image: UploadFile = File(...),adhar_image: Uploa
         asyncio.to_thread(extract_face, pan_img)
     )
 
-    if adhar_face:
+    if adhar_face is not None:
         logger.info("Face extracted from Aadhar image")
     else:
         logger.warning("No face detected in Aadhar image")
 
-    if pan_face:
+    if pan_face is not None:
         logger.info("Face extracted from PAN image")
     else:
         logger.warning("No face detected in PAN image")
 
     match_adhar, score_adhar = await asyncio.to_thread(
         match_faces_with_facenet, extracted_face, adhar_face
-    ) if adhar_face else (False, None)
+    ) if adhar_face is not None else (False, None)
     match_pan, score_pan = await asyncio.to_thread(
         match_faces_with_facenet, extracted_face, pan_face
-    ) if pan_face else (False, None)
+    ) if pan_face is not None else (False, None)
 
     logger.info(f"Face match results - Aadhar: {match_adhar}, Score: {score_adhar}")
     logger.info(f"Face match results - PAN: {match_pan}, Score: {score_pan}")
 
     # Step 7: Return All Results
-    return {
-        "pan_ocr": pan_text,
-        "adhar_ocr": adhar_text,
-        "face_match_with_adhar": {"match": match_adhar, "score": score_adhar},
-        "face_match_with_pan": {"match": match_pan, "score": score_pan},
-    }
+    try:
+        return {
+            "pan_ocr": pan_text,
+            "adhar_ocr": adhar_text,
+            "face_match_with_adhar": {"match": bool(match_adhar), "score": score_adhar},
+            "face_match_with_pan": {"match": bool(match_pan), "score": score_pan},
+        }
+        logger.info("result sent successfully")
+    except Exception as e:
+        logger.error(f"Final result processing error: {e}")
+        return {"error": "Failed to return the result"}

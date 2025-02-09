@@ -39,7 +39,6 @@ def extract_face(image_data: np.ndarray, *, padding: float = 0.35) -> Optional[n
 
     for i, face in enumerate(faces):  # Loop in case there are multiple faces
         x, y, w, h = face["box"]
-
         # Compute padding
         pad_x = int(w * padding)
         pad_y = int(h * padding)
@@ -89,6 +88,9 @@ def enhance_image(image: np.ndarray) -> Optional[np.ndarray]:
     enhanced_image = np.array(enhanced_image)
     enhanced_image = (enhanced_image * 255.0).clip(0, 255).astype(np.uint8)
 
+    #update
+    enhanced_image=cv2.cvtColor(enhanced_image, cv2.COLOR_RGB2BGR)
+    
     logger.info("Image enhancement successful.")
     return enhanced_image
 

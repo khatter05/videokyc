@@ -36,7 +36,7 @@ def preprocess_image(*, image: np.ndarray) -> np.ndarray:
     return thresh
 
 
-def pan_ocr(*, image: np.ndarray) -> Dict[str, Optional[str]]:
+def pan_ocr(image: np.ndarray) -> Dict[str, Optional[str]]:
     """
     Extract PAN card details from an image.
 
@@ -90,7 +90,7 @@ def pan_ocr(*, image: np.ndarray) -> Dict[str, Optional[str]]:
     return extracted_info
 
 
-def adhar_ocr(*, image: np.ndarray) -> Dict[str, Optional[str]]:
+def adhar_ocr(image: np.ndarray) -> Dict[str, Optional[str]]:
     """
     Extract important details from an Aadhaar card image using OCR.
 
