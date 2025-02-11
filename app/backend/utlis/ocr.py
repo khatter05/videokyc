@@ -1,5 +1,5 @@
 import cv2
-from app.backend.utlis.logging_config import get_logger
+from logging_config import get_logger
 import numpy as np
 import re
 from typing import Dict, Optional

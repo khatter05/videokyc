@@ -4,7 +4,7 @@ import tensorflow_hub as hub
 import cv2
 from mtcnn import MTCNN
 
-from app.backend.utlis.logging_config import get_logger
+from logging_config import get_logger
 logger = get_logger(__name__)
 
 mtcnn_detector = MTCNN()

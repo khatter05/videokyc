@@ -9,7 +9,7 @@ from scipy.spatial.distance import cosine
 from app.backend.utlis.models import mtcnn_detector as detector
 from app.backend.utlis.models import srgan_model
 from app.backend.utlis.models import facenet
-from app.backend.utlis.logging_config import get_logger  # Import the global logger
+from logging_config import get_logger  # Import the global logger
 
 logger=get_logger(__name__)
 

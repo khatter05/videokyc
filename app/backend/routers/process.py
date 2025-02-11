@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image, ExifTags
 from app.backend.utlis.ocr import pan_ocr, adhar_ocr
 from app.backend.utlis.face import extract_face, enhance_image, match_faces_with_facenet
-from app.backend.utlis.logging_config import get_logger
+from logging_config import get_logger
 from typing import Optional, Dict
 
 router = APIRouter()

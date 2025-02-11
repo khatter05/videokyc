@@ -10,4 +10,5 @@ app/logs.txt
 /cropped_faces/
 /enhanced_faces/
 app/logs.txt
-
+__pycache__
+logs.txt
