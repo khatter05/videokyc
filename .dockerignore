@@ -5,8 +5,10 @@ app/backend/routers/__pycache__/
 __pycache__/
 *.ipynb_checkpoints
 anaconda_projects/
-/cropped_faces/
-/enhanced_faces/
+cropped_faces/
+enhanced_faces/
 *.jpg
 *.ipynb
 logs.txt
+*.ipynb 
+.gitignore
