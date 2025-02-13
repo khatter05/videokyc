@@ -1,6 +1,4 @@
 import streamlit as st
-import cv2
-import numpy as np
 import requests
 from io import BytesIO
 from PIL import Image
@@ -24,33 +22,27 @@ if "image_captured" not in st.session_state:
 if "submitted" not in st.session_state:
     st.session_state.submitted = False  # Prevent multiple submissions
 
-# Function to capture an image from the webcam
-def capture_image():
-    logger.info("📸 Attempting to capture live image from webcam...")
-    st.write("📸 Capturing image from webcam...")
-    
-    cap = cv2.VideoCapture(0)
+# Streamlit UI Layout
+st.title("📄 Document Upload Portal")
+logger.info("🎬 Streamlit UI loaded.")
 
-    if not cap.isOpened():
-        st.error("❌ Webcam not accessible. Please allow camera access.")
-        logger.error("❌ Webcam not accessible. Check permissions or connection.")
-        return
+# Capture Image using Streamlit's built-in camera
+captured_image = st.camera_input("📸 Capture Live Image")
+if captured_image:
+    st.session_state.captured_image_bytes = captured_image.getvalue()
+    st.session_state.image_captured = True
+    logger.info("✅ Image captured using Streamlit camera input.")
 
-    ret, frame = cap.read()
-    cap.release()
+# File uploaders for PAN and Aadhaar
+pan_upload = st.file_uploader("🆔 Upload PAN Card", type=["jpg", "png", "jpeg"])
+if pan_upload:
+    st.session_state.pan_upload = pan_upload
+    logger.info("📂 PAN image uploaded.")
 
-    if ret:
-        logger.info("✅ Successfully captured image from webcam.")
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        _, buffer = cv2.imencode(".jpg", frame_rgb)  # Convert to JPEG
-        st.session_state.captured_image_bytes = buffer.tobytes()  # Store in session state
-        st.session_state.image_captured = True  # Mark as captured
-
-        st.image(frame_rgb, caption="📷 Captured Live Image", use_column_width=True)
-        st.success("✅ Image captured successfully!")
-    else:
-        st.error("❌ Failed to capture image from webcam.")
-        logger.error("❌ Failed to capture image from webcam.")
+adhar_upload = st.file_uploader("🆔 Upload Aadhaar Card", type=["jpg", "png", "jpeg"])
+if adhar_upload:
+    st.session_state.adhar_upload = adhar_upload
+    logger.info("📂 Aadhaar image uploaded.")
 
 # Function to send images to FastAPI backend (Synchronous)
 def send_images_to_api():
@@ -115,26 +107,6 @@ def send_images_to_api():
 
     st.session_state.submitted = False  # Reset submission state
     logger.info("🔄 Submission state reset.")
-
-# Streamlit UI Layout
-st.title("📄 Document Upload Portal")
-logger.info("🎬 Streamlit UI loaded.")
-
-# Capture Image Button
-if st.button("📸 Capture Live Image"):
-    logger.info("🛑 Capture Live Image button clicked.")
-    capture_image()
-
-# File uploaders for PAN and Aadhaar
-pan_upload = st.file_uploader("🆔 Upload PAN Card", type=["jpg", "png", "jpeg"])
-if pan_upload:
-    st.session_state.pan_upload = pan_upload
-    logger.info("📂 PAN image uploaded.")
-
-adhar_upload = st.file_uploader("🆔 Upload Aadhaar Card", type=["jpg", "png", "jpeg"])
-if adhar_upload:
-    st.session_state.adhar_upload = adhar_upload
-    logger.info("📂 Aadhaar image uploaded.")
 
 # Submit button
 if st.button("🚀 Submit to API"):
