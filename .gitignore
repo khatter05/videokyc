@@ -12,3 +12,5 @@ app/logs.txt
 app/logs.txt
 __pycache__
 logs.txt
+.dockerignore
+dockerfile

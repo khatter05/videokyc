@@ -1,0 +1,13 @@
+easyocr == 1.7.2
+fastapi == 0.115.8
+uvicorn == 0.34.0
+tensorflow-hub == 0.16.1
+tensorflow == 2.18.0
+streamlit == 1.42.0
+requests == 2.32.3
+pillow == 11.1.0
+opencv-python == 4.11.0.86
+numpy == 1.26.4
+mtcnn == 1.0.0
+scipy == 1.15.1
+keras-facenet == 0.3.2
