@@ -12,3 +12,8 @@ enhanced_faces/
 logs.txt
 *.ipynb 
 .gitignore
+cred.py
+webrtc_retry_test.py
+webcam.html
+streamlit_app.py
+*.ipynb

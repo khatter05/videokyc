@@ -12,3 +12,5 @@ mtcnn == 1.0.0
 scipy == 1.15.1
 keras-facenet == 0.3.2
 python-multipart == 0.0.20
+mediapipe==0.10.20
+torch==2.6.0

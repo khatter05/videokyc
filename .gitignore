@@ -10,3 +10,8 @@ anaconda_projects/
 *.jpg
 *.ipynb
 logs.txt
+cred.py
+webrtc_retry_test.py
+webcam.html
+streamlit_app.py
+*.ipynb
