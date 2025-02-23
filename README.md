@@ -9,11 +9,9 @@ This project is a **Video KYC (Know Your Customer) system** that verifies a user
 ```
 khatter05-videokyc/
 ├── __init__.py
-├── dockerfile
 ├── logging_config.py
 ├── requirements.txt
 ├── stn.py
-├── .dockerignore
 └── app/
     ├── __init__.py
     └── backend/
@@ -41,7 +39,7 @@ khatter05-videokyc/
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.10
 - Virtual environment (optional but recommended)
 - Dependencies listed in `requirements.txt`
 
